@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/Datasets/
+data/raw/Datasets/*
+!data/raw/Datasets/sample_tweets.csv
+models/*
+!models/.gitkeep
+.ipynb_checkpoints/
