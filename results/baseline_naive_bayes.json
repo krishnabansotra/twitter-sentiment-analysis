@@ -1,0 +1,7 @@
+{
+  "model": "baseline_naive_bayes",
+  "accuracy": 0.6701,
+  "precision": 0.7615,
+  "recall": 0.4171,
+  "f1_macro": 0.4114
+}

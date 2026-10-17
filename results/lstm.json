@@ -1,0 +1,7 @@
+{
+  "model": "lstm",
+  "accuracy": 0.7992,
+  "precision": 0.7546,
+  "recall": 0.7001,
+  "f1_macro": 0.7217
+}

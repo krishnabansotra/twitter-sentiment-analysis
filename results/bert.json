@@ -1,0 +1,7 @@
+{
+  "model": "bert",
+  "accuracy": 0.8408,
+  "precision": 0.797,
+  "recall": 0.7889,
+  "f1_macro": 0.7929
+}

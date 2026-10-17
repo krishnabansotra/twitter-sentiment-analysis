@@ -1,0 +1,6 @@
+model,accuracy,precision,recall,f1_macro
+bert,0.8408,0.797,0.7889,0.7929
+baseline_logreg,0.7807,0.7226,0.7345,0.7279
+lstm,0.7992,0.7546,0.7001,0.7217
+baseline_linear_svm,0.7896,0.7377,0.7077,0.721
+baseline_naive_bayes,0.6701,0.7615,0.4171,0.4114
