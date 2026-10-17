@@ -1,0 +1,7 @@
+{
+  "model": "baseline_linear_svm",
+  "accuracy": 0.7896,
+  "precision": 0.7377,
+  "recall": 0.7077,
+  "f1_macro": 0.721
+}

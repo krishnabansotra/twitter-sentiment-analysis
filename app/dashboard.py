@@ -66,9 +66,42 @@ tab1, tab2, tab3, tab4 = st.tabs(["Single tweet", "Upload CSV", "Live (X API)", 
 with tab1:
     text = st.text_area("Enter a tweet", "I absolutely love the new update, great job!")
     if st.button("Analyze") and text.strip():
-        r = predictor.predict([text])[0]
+        st.session_state.pop("explain_tweet_checkbox", None)
+        st.session_state["single_tweet_result"] = {
+            "text": text,
+            "backend": model_name,
+            "prediction": predictor.predict([text])[0],
+        }
+
+    result = st.session_state.get("single_tweet_result")
+    if result and result["text"] == text and result["backend"] == model_name:
+        r = result["prediction"]
         st.markdown(f"### Sentiment: **{r['sentiment'].upper()}** ({r['confidence']*100:.1f}% confident)")
         st.bar_chart(pd.Series(r["probabilities"]))
+
+        if st.checkbox("Explain this prediction (slower)", key="explain_tweet_checkbox"):
+            from src.explain import explain_tweet
+
+            sample_count = 300 if model_name == "bert" else 500
+            with st.spinner("Generating word explanation..."):
+                explanation = explain_tweet(
+                    text, backend=model_name, num_samples=sample_count
+                )
+            st.markdown(explanation["html"], unsafe_allow_html=True)
+            words = explanation["words"][:8]
+            if words:
+                weights = pd.DataFrame(words, columns=["word", "weight"])
+                figure = px.bar(weights, x="weight", y="word", orientation="h")
+                figure.update_traces(marker_color=[
+                    COLORS["positive"] if weight > 0 else COLORS["negative"]
+                    for weight in weights["weight"]
+                ])
+                figure.update_layout(
+                    xaxis_title="Weight toward predicted class", yaxis_title=None,
+                    showlegend=False,
+                )
+                st.plotly_chart(figure, use_container_width=True)
+            st.caption("Highlighting is approximate (LIME) and may vary slightly between runs.")
 
 with tab2:
     f = st.file_uploader("CSV with a `text` column (optional `created_at`)", type="csv")

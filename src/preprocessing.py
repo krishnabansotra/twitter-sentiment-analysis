@@ -25,6 +25,21 @@ EMOJI_MAP = {
     "😢": " sad ", "😭": " sad ", "😡": " angry ", "👍": " good ", "👎": " bad ",
 }
 
+# The Kaggle airline dataset has a find-and-replace bug: fragments such as "cancel", "late"
+# and "booking" were overwritten by complaint-reason labels (e.g. "Cancelled Flightled").
+# Undo it so the reason label does not leak into the text the model sees.
+_ARTIFACTS = [
+    (re.compile(r"cancelled flight", re.I), "cancel"),
+    (re.compile(r"late flight", re.I), "late"),
+    (re.compile(r"flight booking problems", re.I), "booking"),
+]
+
+
+def fix_dataset_artifacts(text: str) -> str:
+    text = str(text)
+    for pattern, repl in _ARTIFACTS:
+        text = pattern.sub(repl, text)
+    return text
 
 def _lemmatize(word: str) -> str:
     try:
@@ -35,14 +50,14 @@ def _lemmatize(word: str) -> str:
 
 def normalize_for_transformer(text: str) -> str:
     """Light cleaning for BERT/RoBERTa (they need natural text)."""
-    text = re.sub(r"@\w+", "@user", str(text))
+    text = re.sub(r"@\w+", "@user", fix_dataset_artifacts(text))
     text = re.sub(r"http\S+|www\.\S+", "http", text)
     return text.strip()
 
 
 def clean_tweet(text: str) -> str:
     """Heavy cleaning for classical ML / LSTM models."""
-    text = str(text)
+    text = fix_dataset_artifacts(text)
     for k, v in EMOJI_MAP.items():
         text = text.replace(k, v)
     text = text.lower()

@@ -1,0 +1,7 @@
+{
+  "model": "issue_logreg",
+  "accuracy": 0.6013,
+  "precision": 0.5516,
+  "recall": 0.5619,
+  "f1_macro": 0.5418
+}

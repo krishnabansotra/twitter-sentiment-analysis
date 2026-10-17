@@ -107,3 +107,25 @@ tests/         pytest tests
 - Topic modeling with BERTopic/LDA to explain *why* sentiment is positive/negative
 - Hyperparameter tuning and cross-validation
 - Explainability with LIME/SHAP
+
+## Evidence and evaluation
+
+Review sentiment errors and export examples for annotation:
+```bash
+python -m src.error_analysis --backend baseline --n 60
+```
+
+Write bootstrap model comparisons and confidence intervals:
+```bash
+python -m src.results_report
+```
+
+Evaluate a saved model on a separate labeled CSV without retraining:
+```bash
+python -m src.external_eval --input reviews.csv --text-col text --label-col label --label-mode text --backend baseline
+```
+
+Explain an individual prediction with LIME:
+```bash
+python -m src.explain "The flight was delayed and the staff were rude" --backend baseline
+```

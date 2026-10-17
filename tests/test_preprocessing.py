@@ -17,3 +17,7 @@ def test_elongation():
 
 def test_transformer_norm():
     assert normalize_for_transformer("hi @bob http://x.com") == "hi @user http"
+
+def test_artifact_fix():
+    assert "cancelled" in clean_tweet("my flight got Cancelled Flightled").split()
+    assert "later" in clean_tweet("see you Late Flightr").split()

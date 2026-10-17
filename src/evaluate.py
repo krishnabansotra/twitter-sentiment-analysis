@@ -23,7 +23,7 @@ def evaluate(y_true, y_pred, name: str, labels=None):
     print(classification_report(y_true, y_pred, labels=labels, zero_division=0))
 
     cm = confusion_matrix(y_true, y_pred, labels=labels)
-    plt.figure(figsize=(5, 4))
+    plt.figure(figsize=(max(5, len(labels) * 0.9), max(4, len(labels) * 0.7)))
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=labels, yticklabels=labels)
     plt.title(f"Confusion Matrix - {name}")
     plt.xlabel("Predicted"); plt.ylabel("Actual"); plt.tight_layout()
@@ -41,7 +41,7 @@ def compare_models() -> pd.DataFrame:
     """Combine all saved result JSONs into a comparison table."""
     rows = []
     for fn in os.listdir(RESULTS_DIR):
-        if fn.endswith(".json"):
+        if fn.endswith(".json") and not fn.startswith("issue_"):
             with open(os.path.join(RESULTS_DIR, fn)) as f:
                 rows.append(json.load(f))
     df = pd.DataFrame(rows)
