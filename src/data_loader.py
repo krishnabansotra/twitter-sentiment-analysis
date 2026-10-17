@@ -1,4 +1,5 @@
 """Unified dataset loading. Returns train/val/test DataFrames with columns: text, label."""
+from importlib.resources import path
 import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -47,4 +48,6 @@ def load_data(source: str = "tweet_eval", sample_size: int | None = None):
 
     path = SAMPLE_PATH if source == "sample" else source
     df = pd.read_csv(path)[["text", "label"]].dropna()
+    if sample_size:
+        df = df.sample(min(sample_size, len(df)), random_state=42)
     return _split(df)

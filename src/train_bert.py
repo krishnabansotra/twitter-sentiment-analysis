@@ -20,7 +20,7 @@ def main(source, sample_size, epochs, batch_size, model_name):
         "text": [normalize_for_transformer(t) for t in df["text"]],
         "label": [LABEL2ID[l] for l in df["label"]]})
     tok = AutoTokenizer.from_pretrained(model_name)
-    enc = lambda b: tok(b["text"], truncation=True, max_length=128)
+    enc = lambda b: tok(b["text"], truncation=True, max_length=64)
     tr, va, te = [to_ds(d).map(enc, batched=True) for d in (train, val, test)]
 
     model = AutoModelForSequenceClassification.from_pretrained(
