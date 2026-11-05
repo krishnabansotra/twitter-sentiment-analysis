@@ -1,4 +1,14 @@
 """FastAPI service.  Run: uvicorn api.main:app --reload"""
+from src.db import init_db, save_prediction
+init_db()  # Initialize the database on startup
+# inside the /predict endpoint, after you get the result:
+save_prediction(
+    text=request.text,
+    label=result["label"],
+    confidence=result.get("confidence"),
+    model=request.model,
+    source="api",
+)
 from typing import List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field

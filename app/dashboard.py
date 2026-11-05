@@ -2,8 +2,9 @@
 import os
 import sys
 from html import escape
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 import plotly.express as px
@@ -11,8 +12,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from app import theme
+from src.db import get_predictions, init_db, save_prediction
 from src.predict import available_backends, get_predictor
 
+
+init_db()
 
 st.set_page_config(page_title="Airline Customer Feedback", layout="wide")
 theme.apply_theme()
@@ -212,6 +216,10 @@ with tab1:
                 urgency = compute_urgency(
                     sentiment["probabilities"].get("negative", 0.0), text, issue
                 )
+                save_prediction(
+                    text, sentiment["sentiment"], sentiment["confidence"],
+                    model_name, source="dashboard",
+                )
                 st.session_state["single_tweet_result"] = {
                     "text": text, "backend": model_name, "sentiment": sentiment,
                     "issue": issue, "urgency": urgency,
@@ -389,3 +397,12 @@ st.markdown(
     'cases before responding. LIME highlights are approximate.</div>',
     unsafe_allow_html=True,
 )
+
+st.subheader("Prediction history")
+rows = get_predictions(limit=500)
+if rows:
+    history = pd.DataFrame(rows)
+    st.dataframe(history, width="stretch", hide_index=True)
+    st.bar_chart(history["label"].value_counts())
+else:
+    st.info("No predictions saved yet.")
