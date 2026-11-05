@@ -1,5 +1,5 @@
 """Shared post and source types."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -8,6 +8,7 @@ class Post:
 
     text: str
     source: str
+    meta: dict = field(default_factory=dict)
 
 
 class Source:
