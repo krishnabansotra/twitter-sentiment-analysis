@@ -1,26 +1,23 @@
 """Report test-set results and bootstrap uncertainty for trained models."""
+
 import itertools
 import os
 
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 
 from src.data_loader import ROOT, load_data
 from src.predict import available_backends, get_predictor
 from src.preprocessing import clean_tweet
 
-
 LABELS = ["negative", "neutral", "positive"]
 BOOTSTRAPS = 1000
 
 
 def _bootstrap_indices(size, seed=42):
-    return np.random.default_rng(seed).integers(
-        0, size, size=(BOOTSTRAPS, size), dtype=np.int32
-    )
+    return np.random.default_rng(seed).integers(0, size, size=(BOOTSTRAPS, size), dtype=np.int32)
 
 
 def _bootstrap_metrics(actual, predicted, labels, indices):
@@ -33,8 +30,10 @@ def _bootstrap_metrics(actual, predicted, labels, indices):
         true_positive = np.diagonal(confusion, axis1=-2, axis2=-1)
         denominator = confusion.sum(axis=-1) + confusion.sum(axis=-2)
         return np.divide(
-            2 * true_positive, denominator,
-            out=np.zeros_like(true_positive, dtype=float), where=denominator != 0,
+            2 * true_positive,
+            denominator,
+            out=np.zeros_like(true_positive, dtype=float),
+            where=denominator != 0,
         )
 
     confusion = np.bincount(
@@ -73,11 +72,10 @@ def _predict_sentiment(backend, texts):
     predictor = get_predictor(backend)
     results = []
     for start in range(0, len(texts), 64):
-        results.extend(predictor.predict(texts[start:start + 64]))
-    probability_rows = np.asarray([
-        [result["probabilities"].get(label, 0.0) for label in LABELS]
-        for result in results
-    ])
+        results.extend(predictor.predict(texts[start : start + 64]))
+    probability_rows = np.asarray(
+        [[result["probabilities"].get(label, 0.0) for label in LABELS] for result in results]
+    )
     predicted = np.asarray(LABELS)[probability_rows.argmax(axis=1)]
     return predicted
 
@@ -111,7 +109,9 @@ def main():
             continue
         sentiment_results[backend] = metrics
         row = {
-            "section": "sentiment", "model": backend, "other_model": "",
+            "section": "sentiment",
+            "model": backend,
+            "other_model": "",
             **{key: value for key, value in metrics.items() if key != "bootstrap_f1"},
         }
         for label in LABELS:
@@ -120,25 +120,33 @@ def main():
 
     sentiment_table = []
     for backend, metrics in sentiment_results.items():
-        sentiment_table.append([
-            backend,
-            f"{metrics['accuracy']:.3f}",
-            _format_ci(metrics["accuracy_ci_low"], metrics["accuracy_ci_high"]),
-            f"{metrics['macro_f1']:.3f}",
-            _format_ci(metrics["macro_f1_ci_low"], metrics["macro_f1_ci_high"]),
-            *(f"{metrics['per_class_f1'][label]:.3f}" for label in LABELS),
-        ])
+        sentiment_table.append(
+            [
+                backend,
+                f"{metrics['accuracy']:.3f}",
+                _format_ci(metrics["accuracy_ci_low"], metrics["accuracy_ci_high"]),
+                f"{metrics['macro_f1']:.3f}",
+                _format_ci(metrics["macro_f1_ci_low"], metrics["macro_f1_ci_high"]),
+                *(f"{metrics['per_class_f1'][label]:.3f}" for label in LABELS),
+            ]
+        )
 
     pairwise_results = []
     for first, second in itertools.combinations(sentiment_results, 2):
-        share = float(np.mean(
-            sentiment_results[first]["bootstrap_f1"] > sentiment_results[second]["bootstrap_f1"]
-        ))
+        share = float(
+            np.mean(
+                sentiment_results[first]["bootstrap_f1"] > sentiment_results[second]["bootstrap_f1"]
+            )
+        )
         pairwise_results.append([first, second, share])
-        output_rows.append({
-            "section": "pairwise", "model": first, "other_model": second,
-            "share_first_higher": share,
-        })
+        output_rows.append(
+            {
+                "section": "pairwise",
+                "model": first,
+                "other_model": second,
+                "share_first_higher": share,
+            }
+        )
 
     issue_result = None
     model_path = os.path.join(ROOT, "models", "issue_model.pkl")
@@ -155,49 +163,65 @@ def main():
         issue_actual = issue_test["label"].to_numpy()
         issue_labels = sorted(set(issue_actual) | set(issue_predicted))
         issue_result = _bootstrap_metrics(
-            issue_actual, issue_predicted, issue_labels,
+            issue_actual,
+            issue_predicted,
+            issue_labels,
             _bootstrap_indices(len(issue_test)),
         )
-        output_rows.append({
-            "section": "issue_classifier", "model": "issue",
-            **{key: value for key, value in issue_result.items()
-               if key not in {"bootstrap_f1", "per_class_f1"}},
-        })
+        output_rows.append(
+            {
+                "section": "issue_classifier",
+                "model": "issue",
+                **{
+                    key: value
+                    for key, value in issue_result.items()
+                    if key not in {"bootstrap_f1", "per_class_f1"}
+                },
+            }
+        )
     except (FileNotFoundError, OSError) as error:
         print(f"Skipping issue classifier: {error}")
 
-    pair_table = [[first, second, f"{share:.1%}"]
-                  for first, second, share in pairwise_results]
+    pair_table = [[first, second, f"{share:.1%}"] for first, second, share in pairwise_results]
     issue_table = []
     if issue_result:
-        issue_table.append([
-            f"{issue_result['accuracy']:.3f}",
-            _format_ci(issue_result["accuracy_ci_low"], issue_result["accuracy_ci_high"]),
-            f"{issue_result['macro_f1']:.3f}",
-            _format_ci(issue_result["macro_f1_ci_low"], issue_result["macro_f1_ci_high"]),
-        ])
+        issue_table.append(
+            [
+                f"{issue_result['accuracy']:.3f}",
+                _format_ci(issue_result["accuracy_ci_low"], issue_result["accuracy_ci_high"]),
+                f"{issue_result['macro_f1']:.3f}",
+                _format_ci(issue_result["macro_f1_ci_low"], issue_result["macro_f1_ci_high"]),
+            ]
+        )
 
-    report = "\n".join([
-        "## Sentiment models",
-        _markdown_table(
-            ["Model", "Accuracy", "Accuracy 95% CI", "Macro-F1", "Macro-F1 95% CI",
-             "F1 negative", "F1 neutral", "F1 positive"], sentiment_table
-        ),
-        "\n## Pairwise bootstrap comparison",
-        _markdown_table(
-            ["First model", "Second model", "First higher"], pair_table
-        ),
-        "\n## Issue classifier",
-        _markdown_table(
-            ["Accuracy", "Accuracy 95% CI", "Macro-F1", "Macro-F1 95% CI"], issue_table
-        ),
-    ])
+    report = "\n".join(
+        [
+            "## Sentiment models",
+            _markdown_table(
+                [
+                    "Model",
+                    "Accuracy",
+                    "Accuracy 95% CI",
+                    "Macro-F1",
+                    "Macro-F1 95% CI",
+                    "F1 negative",
+                    "F1 neutral",
+                    "F1 positive",
+                ],
+                sentiment_table,
+            ),
+            "\n## Pairwise bootstrap comparison",
+            _markdown_table(["First model", "Second model", "First higher"], pair_table),
+            "\n## Issue classifier",
+            _markdown_table(
+                ["Accuracy", "Accuracy 95% CI", "Macro-F1", "Macro-F1 95% CI"], issue_table
+            ),
+        ]
+    )
 
     output_dir = os.path.join(ROOT, "results")
     os.makedirs(output_dir, exist_ok=True)
-    pd.DataFrame(output_rows).to_csv(
-        os.path.join(output_dir, "final_results.csv"), index=False
-    )
+    pd.DataFrame(output_rows).to_csv(os.path.join(output_dir, "final_results.csv"), index=False)
     with open(os.path.join(output_dir, "final_results.md"), "w", encoding="utf-8") as file:
         file.write(report + "\n")
     print(report)

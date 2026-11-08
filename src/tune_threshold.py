@@ -1,4 +1,5 @@
 """Compare confidence cutoffs for the issue classifier."""
+
 import os
 
 import joblib
@@ -15,9 +16,7 @@ def main():
     tfidf_path = os.path.join(ROOT, "models", "issue_tfidf.pkl")
 
     data = pd.read_csv(data_path).dropna()
-    _, test = train_test_split(
-        data, test_size=0.2, random_state=42, stratify=data["label"]
-    )
+    _, test = train_test_split(data, test_size=0.2, random_state=42, stratify=data["label"])
     model = joblib.load(model_path)
     tfidf = joblib.load(tfidf_path)
 
@@ -33,13 +32,16 @@ def main():
         share = selected.mean() * 100
         accuracy = (
             (predictions[selected] == labels[selected]).mean() * 100
-            if selected.any() else float("nan")
+            if selected.any()
+            else float("nan")
         )
-        rows.append({
-            "cutoff": f"{cutoff:.2f}",
-            "share (%)": f"{share:.1f}%",
-            "accuracy (%)": f"{accuracy:.1f}%" if selected.any() else "N/A",
-        })
+        rows.append(
+            {
+                "cutoff": f"{cutoff:.2f}",
+                "share (%)": f"{share:.1f}%",
+                "accuracy (%)": f"{accuracy:.1f}%" if selected.any() else "N/A",
+            }
+        )
 
     print(pd.DataFrame(rows).to_string(index=False))
 

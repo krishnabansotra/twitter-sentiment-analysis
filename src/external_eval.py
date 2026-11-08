@@ -1,21 +1,25 @@
 """Evaluate a saved sentiment model on a different labeled CSV."""
+
 import argparse
 import json
 import os
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (
-    accuracy_score, classification_report, confusion_matrix, f1_score,
+    ConfusionMatrixDisplay,
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
 )
-from sklearn.metrics import ConfusionMatrixDisplay
 
 from src.data_loader import ROOT
 from src.predict import get_predictor
-
 
 LABELS = ["negative", "neutral", "positive"]
 
@@ -31,8 +35,16 @@ def _map_labels(values, mode):
     return mapped
 
 
-def main(input_path, text_col, label_col, label_mode="text", backend="baseline",
-         binary=False, n=3000, out_dir="results/external"):
+def main(
+    input_path,
+    text_col,
+    label_col,
+    label_mode="text",
+    backend="baseline",
+    binary=False,
+    n=3000,
+    out_dir="results/external",
+):
     data = pd.read_csv(input_path)
     missing = [column for column in [text_col, label_col] if column not in data.columns]
     if missing:
@@ -51,11 +63,10 @@ def main(input_path, text_col, label_col, label_mode="text", backend="baseline",
     results = []
     texts = data[text_col].astype(str).tolist()
     for start in range(0, len(texts), 64):
-        results.extend(predictor.predict(texts[start:start + 64]))
-    probabilities = np.asarray([
-        [result["probabilities"].get(label, 0.0) for label in LABELS]
-        for result in results
-    ])
+        results.extend(predictor.predict(texts[start : start + 64]))
+    probabilities = np.asarray(
+        [[result["probabilities"].get(label, 0.0) for label in LABELS] for result in results]
+    )
     actual = data["_label"].to_numpy()
     if binary:
         binary_scores = probabilities[:, [LABELS.index("negative"), LABELS.index("positive")]]
@@ -66,17 +77,15 @@ def main(input_path, text_col, label_col, label_mode="text", backend="baseline",
         display_labels = LABELS
 
     accuracy = float(accuracy_score(actual, predicted))
-    macro_f1 = float(f1_score(
-        actual, predicted, labels=display_labels, average="macro", zero_division=0
-    ))
+    macro_f1 = float(
+        f1_score(actual, predicted, labels=display_labels, average="macro", zero_division=0)
+    )
     report = classification_report(
         actual, predicted, labels=display_labels, zero_division=0, output_dict=True
     )
     print(f"Accuracy: {accuracy:.4f}")
     print(f"Macro-F1: {macro_f1:.4f}")
-    print(classification_report(
-        actual, predicted, labels=display_labels, zero_division=0
-    ))
+    print(classification_report(actual, predicted, labels=display_labels, zero_division=0))
 
     output_dir = out_dir if os.path.isabs(out_dir) else os.path.join(ROOT, out_dir)
     os.makedirs(output_dir, exist_ok=True)
@@ -99,9 +108,13 @@ def main(input_path, text_col, label_col, label_mode="text", backend="baseline",
         "classification_report": report,
         "confusion_matrix": confusion.tolist(),
     }
-    with open(os.path.join(output_dir, f"{backend}{suffix}_metrics.json"), "w", encoding="utf-8") as file:
+    with open(
+        os.path.join(output_dir, f"{backend}{suffix}_metrics.json"), "w", encoding="utf-8"
+    ) as file:
         json.dump(metrics, file, indent=2)
-    print(f"Domain-shift test: model trained on airline tweets, evaluated on {input_path} without retraining.")
+    print(
+        f"Domain-shift test: model trained on airline tweets, evaluated on {input_path} without retraining."
+    )
 
 
 if __name__ == "__main__":
@@ -118,6 +131,12 @@ if __name__ == "__main__":
     if args.n < 1:
         parser.error("--n must be at least 1")
     main(
-        args.input, args.text_col, args.label_col, args.label_mode,
-        args.backend, args.binary, args.n, args.out_dir,
+        args.input,
+        args.text_col,
+        args.label_col,
+        args.label_mode,
+        args.backend,
+        args.binary,
+        args.n,
+        args.out_dir,
     )

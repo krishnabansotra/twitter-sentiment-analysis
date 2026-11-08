@@ -9,13 +9,16 @@ A sentiment-analysis project for classifying short text as negative, neutral, or
 - Analyze a single text or uploaded CSV in the dashboard. Batch analysis can process up to 5,000 rows, skip empty text, and download results.
 - Explore saved predictions in the Insights tab with source/model/sentiment filters, sentiment counts over time, and top keywords.
 - Review recent predictions in the History section. Saved records are stored in `data/app.db`.
-- Use the dashboard's optional live X API tab, model comparison, urgency/reply guidance, and LIME-based explanation.
+- Analyze YouTube comments in the dashboard, including sentiment summaries, time trends, keywords, comment examples, and optional history saving.
+- Use model comparison, optional airline-oriented service guidance, and LIME-based explanations.
 
-[SCREENSHOT: dashboard home]
+![Dashboard home](docs/images/home.png)
 
-[SCREENSHOT: batch analysis results]
+![Prediction history](docs/images/history.png)
 
-[SCREENSHOT: insights tab]
+![Batch analysis results](docs/images/batch.png)
+
+![Insights tab](docs/images/insights.png)
 
 ## Architecture
 
@@ -112,7 +115,9 @@ $env:REDDIT_CLIENT_SECRET = "YOUR_REDDIT_CLIENT_SECRET"
 python -m src.collect --source reddit --query "flight delay" --limit 50 --model baseline
 ```
 
-The optional dashboard Live (X API) tab uses `X_BEARER_TOKEN`. `.env.example` documents that variable, but the code reads it from the process environment; PowerShell can set it with `$env:X_BEARER_TOKEN = "YOUR_X_BEARER_TOKEN"`.
+The dashboard's **YouTube analysis** tab accepts a video URL or ID, displays the title and total comment count, and lets you choose the number/order/model for comment analysis. Results are cached by video, count, order, and model. Set `YOUTUBE_API_KEY` in the process environment or copy `.env.example` to `.env` and add your key there. The tab estimates quota use before analysis; video details are cached separately.
+
+The dashboard no longer includes a live X tab. The standalone X collector remains available through `python -m src.data_collection` and uses `X_BEARER_TOKEN` from the process environment; Tweepy and its environment variable remain because that command still uses them.
 
 ## API Endpoints
 
@@ -176,7 +181,7 @@ Other source modules include data loading/collection, issue and urgency analysis
 
 - The API currently fails at import because `api/main.py` executes a prediction-save block at module scope using undefined `request` and `result` variables.
 - TweetEval is the default training source and requires network access. `sentiment140` is loaded as a two-class dataset, unlike the project's usual three sentiment labels.
-- Reddit and YouTube collection require credentials; live X API access also depends on a valid bearer token and current API availability.
+- Reddit and YouTube collection require credentials; the standalone X collector depends on a valid bearer token and current API availability.
 - The dashboard can only select model backends whose artifacts are present. Transformer training may require substantial download time and compute.
 - The Insights keyword counts are a simple English-token frequency measure, not topic or phrase analysis. SQLite is a local application database, not a multi-user database service.
 

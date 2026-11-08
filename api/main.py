@@ -1,5 +1,7 @@
 """FastAPI service.  Run: uvicorn api.main:app --reload"""
+
 from src.db import init_db, save_prediction
+
 init_db()  # Initialize the database on startup
 # inside the /predict endpoint, after you get the result:
 save_prediction(
@@ -9,11 +11,11 @@ save_prediction(
     model=request.model,
     source="api",
 )
-from typing import List
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.predict import get_predictor, available_backends
+from src.predict import available_backends, get_predictor
 
 app = FastAPI(title="Twitter/X Sentiment API", version="1.0")
 
@@ -24,7 +26,7 @@ class TweetIn(BaseModel):
 
 
 class BatchIn(BaseModel):
-    texts: List[str] = Field(..., min_length=1, max_length=500)
+    texts: list[str] = Field(..., min_length=1, max_length=500)
     model: str = "baseline"
 
 

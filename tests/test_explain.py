@@ -5,7 +5,6 @@ import pytest
 from src.data_loader import ROOT
 from src.explain import explain_tweet
 
-
 MODEL_PATH = os.path.join(ROOT, "models", "baseline_model.pkl")
 
 

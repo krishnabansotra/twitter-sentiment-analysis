@@ -1,14 +1,16 @@
 """Issue classifier: predicts WHY a customer is unhappy (trained on negative tweets only)."""
+
 import os
+
 import joblib
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 
 from src.data_loader import ROOT
-from src.preprocessing import clean_tweet
 from src.evaluate import evaluate
+from src.preprocessing import clean_tweet
 
 
 def main():

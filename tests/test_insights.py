@@ -1,7 +1,10 @@
 import pandas as pd
 
 from src.insights import (
-    detect_spikes, sentiment_over_time, top_issues, top_keywords,
+    detect_spikes,
+    sentiment_over_time,
+    top_issues,
+    top_keywords,
 )
 
 
@@ -10,16 +13,18 @@ def _sample_data():
     for day in pd.date_range("2026-01-01", periods=8, freq="D"):
         count = 40 if day.day == 5 else 8
         for index in range(count):
-            rows.append({
-                "text": f"Delayed flight feedback {index}",
-                "created_at": day,
-                "sentiment": "negative",
-                "issue": "Late Flight",
-                "urgency": 50,
-                "urgency_level": "Medium",
-                "urgency_reasons": "",
-                "suggested_reply": "",
-            })
+            rows.append(
+                {
+                    "text": f"Delayed flight feedback {index}",
+                    "created_at": day,
+                    "sentiment": "negative",
+                    "issue": "Late Flight",
+                    "urgency": 50,
+                    "urgency_level": "Medium",
+                    "urgency_reasons": "",
+                    "suggested_reply": "",
+                }
+            )
     return pd.DataFrame(rows)
 
 

@@ -16,6 +16,7 @@ uvicorn>=0.27
 pydantic>=2.5
 streamlit>=1.32
 requests>=2.31
+python-dotenv>=1.0
 praw
 tweepy>=4.14
 pytest>=8.0

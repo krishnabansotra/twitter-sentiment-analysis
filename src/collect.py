@@ -1,4 +1,5 @@
 """Fetch posts, predict sentiment, and save the results."""
+
 import argparse
 import csv
 from pathlib import Path
@@ -8,7 +9,6 @@ from src.predict import get_predictor
 from src.sources.csv_source import CSVSource
 from src.sources.reddit_source import RedditSource
 from src.sources.youtube_source import YouTubeSource
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,7 +24,8 @@ def parse_args():
     parser.add_argument("--model", default="baseline")
     parser.add_argument("--export-csv", help="Write fetched posts to this CSV file")
     parser.add_argument(
-        "--no-predict", action="store_true",
+        "--no-predict",
+        action="store_true",
         help="Fetch and optionally export posts without predicting or saving them",
     )
     args = parser.parse_args()
@@ -75,12 +76,14 @@ def main():
             )
             writer.writeheader()
             for post in posts:
-                writer.writerow({
-                    "comment_id": post.meta.get("comment_id", ""),
-                    "video_id": post.meta.get("video_id", ""),
-                    "published_at": post.meta.get("published_at", ""),
-                    "text": post.text,
-                })
+                writer.writerow(
+                    {
+                        "comment_id": post.meta.get("comment_id", ""),
+                        "video_id": post.meta.get("video_id", ""),
+                        "published_at": post.meta.get("published_at", ""),
+                        "text": post.text,
+                    }
+                )
         print(f"Exported {len(posts)} posts to {export_path}")
 
     if not args.no_predict:

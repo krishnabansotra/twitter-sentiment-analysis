@@ -1,12 +1,13 @@
 """Unified dataset loading. Returns train/val/test DataFrames with columns: text, label."""
-from importlib.resources import path
+
 import os
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-LABELS = ["negative", "neutral", "positive"]       # index = class id
-LABEL2ID = {l: i for i, l in enumerate(LABELS)}
-ID2LABEL = {i: l for l, i in LABEL2ID.items()}
+LABELS = ["negative", "neutral", "positive"]  # index = class id
+LABEL2ID = {label: index for index, label in enumerate(LABELS)}
+ID2LABEL = {index: label for label, index in LABEL2ID.items()}
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SENT140_PATH = os.path.join(ROOT, "data", "raw", "sentiment140.csv")
@@ -20,26 +21,35 @@ def _split(df, seed=42):
 
 
 def load_data(source: str = "tweet_eval", sample_size: int | None = None):
-    """
-    source:
-      'tweet_eval'    -> Hugging Face TweetEval sentiment (3 classes) [default, recommended]
-      'sentiment140'  -> data/raw/sentiment140.csv from Kaggle (2 classes)
-      'sample'        -> tiny bundled CSV (for smoke tests)
-      '<path>.csv'    -> your own CSV with columns: text,label
-    """
+    """Load TweetEval, Sentiment140, sample, or local CSV data into train/val/test splits."""
     if source == "tweet_eval":
         from datasets import load_dataset
+
         ds = load_dataset("tweet_eval", "sentiment")
-        conv = lambda s: pd.DataFrame({"text": ds[s]["text"],
-                                       "label": [ID2LABEL[i] for i in ds[s]["label"]]})
-        train, val, test = conv("train"), conv("validation"), conv("test")
+
+        def convert_split(split):
+            return pd.DataFrame(
+                {
+                    "text": ds[split]["text"],
+                    "label": [ID2LABEL[label_id] for label_id in ds[split]["label"]],
+                }
+            )
+
+        train, val, test = (
+            convert_split("train"),
+            convert_split("validation"),
+            convert_split("test"),
+        )
         if sample_size:
-            train = train.sample(min(sample_size, len(train)), random_state=42).reset_index(drop=True)
+            train = train.sample(min(sample_size, len(train)), random_state=42).reset_index(
+                drop=True
+            )
         return train, val, test
 
     if source == "sentiment140":
-        df = pd.read_csv(SENT140_PATH, encoding="latin-1",
-                         names=["target", "id", "date", "flag", "user", "text"])
+        df = pd.read_csv(
+            SENT140_PATH, encoding="latin-1", names=["target", "id", "date", "flag", "user", "text"]
+        )
         df["label"] = df["target"].map({0: "negative", 4: "positive"})
         df = df[["text", "label"]].dropna()
         if sample_size:

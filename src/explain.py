@@ -1,4 +1,5 @@
 """Explain sentiment predictions with local word weights from LIME."""
+
 import argparse
 import html
 import re
@@ -21,11 +22,10 @@ def predict_fn(texts, backend="baseline"):
     predictor = get_predictor(backend)
     probabilities = []
     for start in range(0, len(texts), 64):
-        results = predictor.predict(list(texts[start:start + 64]))
-        probabilities.extend([
-            [result["probabilities"].get(label, 0.0) for label in LABELS]
-            for result in results
-        ])
+        results = predictor.predict(list(texts[start : start + 64]))
+        probabilities.extend(
+            [[result["probabilities"].get(label, 0.0) for label in LABELS] for result in results]
+        )
     return np.asarray(probabilities, dtype=float).reshape((-1, len(LABELS)))
 
 
@@ -79,8 +79,6 @@ if __name__ == "__main__":
     parser.add_argument("--num-features", type=int, default=8)
     parser.add_argument("--num-samples", type=int, default=500)
     args = parser.parse_args()
-    result = explain_tweet(
-        args.text, args.backend, args.num_features, args.num_samples
-    )
+    result = explain_tweet(args.text, args.backend, args.num_features, args.num_samples)
     print(f"{result['label']} ({result['confidence']:.3f})")
     print(result["html"])

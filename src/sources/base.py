@@ -1,4 +1,5 @@
 """Shared post and source types."""
+
 from dataclasses import dataclass, field
 
 

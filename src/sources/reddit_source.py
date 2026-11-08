@@ -1,4 +1,5 @@
 """Reddit-backed post source."""
+
 import os
 
 from src.sources.base import Post, Source
@@ -13,7 +14,8 @@ class RedditSource(Source):
         client_id = os.environ.get("REDDIT_CLIENT_ID")
         client_secret = os.environ.get("REDDIT_CLIENT_SECRET")
         missing = [
-            name for name, value in (
+            name
+            for name, value in (
                 ("REDDIT_CLIENT_ID", client_id),
                 ("REDDIT_CLIENT_SECRET", client_secret),
             )

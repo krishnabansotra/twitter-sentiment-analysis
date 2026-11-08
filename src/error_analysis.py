@@ -1,8 +1,9 @@
 """Summarize sentiment-model errors and save examples for review."""
+
 import argparse
-from collections import Counter
 import os
 import re
+from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -10,7 +11,6 @@ from sklearn.metrics import accuracy_score
 
 from src.data_loader import ROOT, load_data
 from src.predict import get_predictor
-
 
 LABELS = ["negative", "neutral", "positive"]
 NEGATION_RE = re.compile(r"\b(?:not|no|nor|never|n't)\b", re.IGNORECASE)
@@ -21,11 +21,10 @@ def _predict(texts, backend):
     predictor = get_predictor(backend)
     rows = []
     for start in range(0, len(texts), 64):
-        rows.extend(predictor.predict(texts[start:start + 64]))
-    probabilities = np.asarray([
-        [row["probabilities"].get(label, 0.0) for label in LABELS]
-        for row in rows
-    ])
+        rows.extend(predictor.predict(texts[start : start + 64]))
+    probabilities = np.asarray(
+        [[row["probabilities"].get(label, 0.0) for label in LABELS] for row in rows]
+    )
     predictions = np.asarray(LABELS)[probabilities.argmax(axis=1)]
     return predictions, probabilities.max(axis=1)
 
@@ -48,8 +47,7 @@ def main(backend="bert", n=60, out_dir="results/error_analysis"):
     print(f"Accuracy: {accuracy_score(actual, predicted):.3f}")
     print("Most common errors (true -> predicted):")
     for (true_label, predicted_label), count in Counter(
-        (true, pred) for true, pred, is_correct in zip(actual, predicted, correct)
-        if not is_correct
+        (true, pred) for true, pred, is_correct in zip(actual, predicted, correct) if not is_correct
     ).most_common(6):
         print(f"  {true_label} -> {predicted_label}: {count}")
 
@@ -60,33 +58,40 @@ def main(backend="bert", n=60, out_dir="results/error_analysis"):
         default="16+ words",
     )
     print("Accuracy by tweet length:")
-    _accuracy_by_bucket(actual, predicted, length_buckets,
-                        ["<=6 words", "7-15 words", "16+ words"])
+    _accuracy_by_bucket(actual, predicted, length_buckets, ["<=6 words", "7-15 words", "16+ words"])
 
     confidence_buckets = pd.cut(
-        confidence, bins=[-np.inf, 0.5, 0.7, 0.9, np.inf], right=False,
+        confidence,
+        bins=[-np.inf, 0.5, 0.7, 0.9, np.inf],
+        right=False,
         labels=["<0.5", "0.5-0.7", "0.7-0.9", ">=0.9"],
     ).astype(str)
     print("Accuracy by confidence:")
-    _accuracy_by_bucket(actual, predicted, confidence_buckets,
-                        ["<0.5", "0.5-0.7", "0.7-0.9", ">=0.9"])
+    _accuracy_by_bucket(
+        actual, predicted, confidence_buckets, ["<0.5", "0.5-0.7", "0.7-0.9", ">=0.9"]
+    )
 
     errors = test.loc[~correct, ["text"]].copy()
     errors["true"] = actual[~correct]
     errors["pred"] = predicted[~correct]
     errors["confidence"] = confidence[~correct]
-    errors["has_negation"] = errors["text"].astype(str).map(
-        lambda text: bool(NEGATION_RE.search(text))
+    errors["has_negation"] = (
+        errors["text"].astype(str).map(lambda text: bool(NEGATION_RE.search(text)))
     )
     errors["has_question"] = errors["text"].astype(str).str.contains("?", regex=False)
     errors["is_short"] = errors["text"].astype(str).map(lambda text: len(text.split()) <= 6)
-    errors["has_emoji"] = errors["text"].astype(str).map(
-        lambda text: bool(EMOJI_RE.search(text))
-    )
+    errors["has_emoji"] = errors["text"].astype(str).map(lambda text: bool(EMOJI_RE.search(text)))
     errors["error_type"] = ""
     columns = [
-        "text", "true", "pred", "confidence", "has_negation", "has_question",
-        "is_short", "has_emoji", "error_type",
+        "text",
+        "true",
+        "pred",
+        "confidence",
+        "has_negation",
+        "has_question",
+        "is_short",
+        "has_emoji",
+        "error_type",
     ]
     errors = errors[columns]
     if len(errors) > n:

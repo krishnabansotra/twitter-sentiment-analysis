@@ -1,13 +1,15 @@
 """Full pipeline: sentiment -> issue (negatives only) -> urgency -> suggested reply."""
+
 import argparse
+
 import pandas as pd
 
-from src.predict import get_predictor
 from src.issue import predict_issue
-from src.urgency import compute_urgency
+from src.predict import get_predictor
 from src.replies import suggest_reply
+from src.urgency import compute_urgency
 
-UNCLEAR_BELOW = 0.35   # issue confidence below this is shown as "Unclear"
+UNCLEAR_BELOW = 0.35  # issue confidence below this is shown as "Unclear"
 REVIEW_BELOW = 0.5  # sentiment confidence below this needs a human check
 
 
@@ -16,13 +18,17 @@ def analyze_texts(texts, backend="baseline", chunk=128):
     predictor = get_predictor(backend)
     sent = []
     for i in range(0, len(texts), chunk):
-        sent += predictor.predict(texts[i:i + chunk])
+        sent += predictor.predict(texts[i : i + chunk])
 
     neg_idx = [i for i, s in enumerate(sent) if s["sentiment"] == "negative"]
     issues = [None] * len(texts)
     if neg_idx:
         for i, r in zip(neg_idx, predict_issue([texts[i] for i in neg_idx])):
-            issues[i] = r if r["confidence"] >= UNCLEAR_BELOW else {"issue": "Unclear", "confidence": r["confidence"]}
+            issues[i] = (
+                r
+                if r["confidence"] >= UNCLEAR_BELOW
+                else {"issue": "Unclear", "confidence": r["confidence"]}
+            )
 
     rows = []
     for t, s, iss in zip(texts, sent, issues):
@@ -32,13 +38,19 @@ def analyze_texts(texts, backend="baseline", chunk=128):
         reply = suggest_reply(s["sentiment"], issue)
         if low_conf and s["sentiment"] != "negative":
             reply = "[Low confidence - check this tweet before replying]"
-        rows.append({
-            "sentiment": s["sentiment"], "sentiment_conf": s["confidence"],
-            "issue": issue, "issue_conf": iss["confidence"] if iss else None,
-            "urgency": u["score"], "urgency_level": u["level"],
-            "urgency_reasons": "; ".join(u["reasons"]),
-            "suggested_reply": reply, "needs_review": low_conf,
-        })
+        rows.append(
+            {
+                "sentiment": s["sentiment"],
+                "sentiment_conf": s["confidence"],
+                "issue": issue,
+                "issue_conf": iss["confidence"] if iss else None,
+                "urgency": u["score"],
+                "urgency_level": u["level"],
+                "urgency_reasons": "; ".join(u["reasons"]),
+                "suggested_reply": reply,
+                "needs_review": low_conf,
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -66,4 +78,6 @@ if __name__ == "__main__":
     print(out["urgency_level"].value_counts(), "\n")
     top = out.sort_values("urgency", ascending=False).head(8)
     for _, r in top.iterrows():
-        print(f"[{r.urgency}] {r.urgency_level} | {r.issue} | {r.text[:90]}\n    why: {r.urgency_reasons}")
+        print(
+            f"[{r.urgency}] {r.urgency_level} | {r.issue} | {r.text[:90]}\n    why: {r.urgency_reasons}"
+        )

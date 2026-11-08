@@ -1,7 +1,10 @@
 """Predict the complaint reason for negative tweets."""
-import os
-import joblib
+
 import json
+import os
+
+import joblib
+
 from src.data_loader import ROOT
 from src.preprocessing import clean_tweet
 
@@ -21,6 +24,7 @@ def predict_issue(texts):
         i = int(p.argmax())
         out.append({"issue": classes[i], "confidence": round(float(p[i]), 4)})
     return out
+
 
 RESULTS_DIR = "data/processed/"
 rows = []

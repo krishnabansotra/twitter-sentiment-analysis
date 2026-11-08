@@ -1,24 +1,135 @@
 """Summaries, trends, and spike alerts for analyzed feedback."""
+
 import argparse
 import re
 
 import pandas as pd
 
-
 STOPWORDS = {
-    "about", "above", "after", "again", "against", "all", "also", "am", "an",
-    "and", "any", "are", "as", "at", "be", "because", "been", "before", "being",
-    "below", "between", "both", "but", "by", "can", "could", "did", "do", "does",
-    "doing", "down", "during", "each", "few", "for", "from", "further", "had",
-    "has", "have", "having", "he", "her", "here", "hers", "herself", "him",
-    "himself", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself",
-    "just", "me", "more", "most", "my", "myself", "no", "nor", "not", "of", "off",
-    "on", "once", "only", "or", "other", "our", "ours", "ourselves", "out", "over",
-    "own", "same", "she", "should", "so", "some", "such", "than", "that", "the",
-    "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this",
-    "those", "through", "to", "too", "under", "until", "up", "very", "was", "we",
-    "were", "what", "when", "where", "which", "while", "who", "whom", "why", "will",
-    "with", "you", "your", "yours", "yourself", "yourselves",
+    "about",
+    "above",
+    "after",
+    "again",
+    "against",
+    "all",
+    "also",
+    "am",
+    "an",
+    "and",
+    "any",
+    "are",
+    "as",
+    "at",
+    "be",
+    "because",
+    "been",
+    "before",
+    "being",
+    "below",
+    "between",
+    "both",
+    "but",
+    "by",
+    "can",
+    "could",
+    "did",
+    "do",
+    "does",
+    "doing",
+    "down",
+    "during",
+    "each",
+    "few",
+    "for",
+    "from",
+    "further",
+    "had",
+    "has",
+    "have",
+    "having",
+    "he",
+    "her",
+    "here",
+    "hers",
+    "herself",
+    "him",
+    "himself",
+    "his",
+    "how",
+    "i",
+    "if",
+    "in",
+    "into",
+    "is",
+    "it",
+    "its",
+    "itself",
+    "just",
+    "me",
+    "more",
+    "most",
+    "my",
+    "myself",
+    "no",
+    "nor",
+    "not",
+    "of",
+    "off",
+    "on",
+    "once",
+    "only",
+    "or",
+    "other",
+    "our",
+    "ours",
+    "ourselves",
+    "out",
+    "over",
+    "own",
+    "same",
+    "she",
+    "should",
+    "so",
+    "some",
+    "such",
+    "than",
+    "that",
+    "the",
+    "their",
+    "theirs",
+    "them",
+    "themselves",
+    "then",
+    "there",
+    "these",
+    "they",
+    "this",
+    "those",
+    "through",
+    "to",
+    "too",
+    "under",
+    "until",
+    "up",
+    "very",
+    "was",
+    "we",
+    "were",
+    "what",
+    "when",
+    "where",
+    "which",
+    "while",
+    "who",
+    "whom",
+    "why",
+    "will",
+    "with",
+    "you",
+    "your",
+    "yours",
+    "yourself",
+    "yourselves",
 }
 URL_PATTERN = re.compile(
     r"(?:https?://|www\.)\S+|\b(?:[a-z0-9-]+\.)+[a-z]{2,}(?:/\S*)?",
@@ -50,9 +161,11 @@ def sentiment_over_time(rows, freq="D") -> pd.DataFrame:
         )
 
     frame = pd.DataFrame(records)
-    counts = frame.groupby(
-        [pd.Grouper(key="timestamp", freq=freq), "sentiment"]
-    ).size().unstack(fill_value=0)
+    counts = (
+        frame.groupby([pd.Grouper(key="timestamp", freq=freq), "sentiment"])
+        .size()
+        .unstack(fill_value=0)
+    )
     labels = standard_labels + sorted(set(counts.columns) - set(standard_labels))
     return counts.reindex(columns=labels, fill_value=0).astype(int)
 
@@ -91,9 +204,7 @@ def kpis(df) -> dict:
     """Return headline feedback and urgency metrics."""
     prepared = _prep(df)
     total = len(prepared)
-    pct_negative = (
-        prepared["sentiment"].eq("negative").sum() * 100 / total if total else 0.0
-    )
+    pct_negative = prepared["sentiment"].eq("negative").sum() * 100 / total if total else 0.0
     urgency = pd.to_numeric(prepared["urgency"], errors="coerce")
     avg_urgency = urgency.mean() if urgency.notna().any() else 0.0
     return {
@@ -115,11 +226,17 @@ def top_issues(df, n=8, include_unclear=False) -> pd.DataFrame:
     if not include_unclear:
         issues = issues[~issues["issue"].isin(["Unclear", "Can't Tell"])]
     counts = issues["issue"].value_counts().head(n)
-    return pd.DataFrame([
-        {"issue": issue, "count": int(count),
-         "share_pct": round(count * 100 / total, 1) if total else 0.0}
-        for issue, count in counts.items()
-    ], columns=columns)
+    return pd.DataFrame(
+        [
+            {
+                "issue": issue,
+                "count": int(count),
+                "share_pct": round(count * 100 / total, 1) if total else 0.0,
+            }
+            for issue, count in counts.items()
+        ],
+        columns=columns,
+    )
 
 
 def sentiment_trend(df, freq="D") -> pd.DataFrame:
@@ -128,9 +245,11 @@ def sentiment_trend(df, freq="D") -> pd.DataFrame:
     prepared = _prep(df)
     if prepared.empty:
         return pd.DataFrame(columns=columns)
-    counts = prepared.groupby([
-        pd.Grouper(key="created_at", freq=freq), "sentiment"
-    ]).size().unstack(fill_value=0)
+    counts = (
+        prepared.groupby([pd.Grouper(key="created_at", freq=freq), "sentiment"])
+        .size()
+        .unstack(fill_value=0)
+    )
     counts = counts.reindex(columns=["negative", "neutral", "positive"], fill_value=0)
     counts["total"] = counts.sum(axis=1)
     counts["pct_negative"] = (counts["negative"] * 100 / counts["total"]).round(1)
@@ -161,19 +280,23 @@ def detect_spikes(df, freq="D", z=2.0, min_count=5) -> pd.DataFrame:
             mean = float(others.mean())
             std = float(others.std(ddof=0))
             if count >= min_count and count > mean + z * max(std, 1.0):
-                spikes.append({
-                    "period": period,
-                    "topic": topic,
-                    "count": int(count),
-                    "typical": round(mean, 1),
-                    "ratio": round(count / max(mean, 0.1), 1),
-                })
+                spikes.append(
+                    {
+                        "period": period,
+                        "topic": topic,
+                        "count": int(count),
+                        "typical": round(mean, 1),
+                        "ratio": round(count / max(mean, 0.1), 1),
+                    }
+                )
 
     if not spikes:
         return pd.DataFrame(columns=columns)
-    return pd.DataFrame(spikes, columns=columns).sort_values(
-        "ratio", ascending=False
-    ).reset_index(drop=True)
+    return (
+        pd.DataFrame(spikes, columns=columns)
+        .sort_values("ratio", ascending=False)
+        .reset_index(drop=True)
+    )
 
 
 def issue_change(df, recent_days=3) -> pd.DataFrame:
@@ -193,30 +316,36 @@ def issue_change(df, recent_days=3) -> pd.DataFrame:
 
     rows = []
     for issue in issues:
-        earlier_pct = (
-            earlier["issue"].eq(issue).sum() * 100 / len(earlier) if len(earlier) else 0.0
+        earlier_pct = earlier["issue"].eq(issue).sum() * 100 / len(earlier) if len(earlier) else 0.0
+        recent_pct = recent["issue"].eq(issue).sum() * 100 / len(recent) if len(recent) else 0.0
+        rows.append(
+            {
+                "issue": issue,
+                "earlier_pct": round(float(earlier_pct), 1),
+                "recent_pct": round(float(recent_pct), 1),
+                "change_pts": round(float(recent_pct - earlier_pct), 1),
+            }
         )
-        recent_pct = (
-            recent["issue"].eq(issue).sum() * 100 / len(recent) if len(recent) else 0.0
-        )
-        rows.append({
-            "issue": issue,
-            "earlier_pct": round(float(earlier_pct), 1),
-            "recent_pct": round(float(recent_pct), 1),
-            "change_pts": round(float(recent_pct - earlier_pct), 1),
-        })
     if not rows:
         return pd.DataFrame(columns=columns)
-    return pd.DataFrame(rows, columns=columns).sort_values(
-        "change_pts", ascending=False
-    ).reset_index(drop=True)
+    return (
+        pd.DataFrame(rows, columns=columns)
+        .sort_values("change_pts", ascending=False)
+        .reset_index(drop=True)
+    )
 
 
 def urgent_queue(df, n=20) -> pd.DataFrame:
     """Return the highest-urgency analyzed tweets."""
     columns = [
-        "text", "created_at", "sentiment", "issue", "urgency", "urgency_level",
-        "urgency_reasons", "suggested_reply",
+        "text",
+        "created_at",
+        "sentiment",
+        "issue",
+        "urgency",
+        "urgency_level",
+        "urgency_reasons",
+        "suggested_reply",
     ]
     prepared = _prep(df)
     available = [column for column in columns if column in prepared.columns]

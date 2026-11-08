@@ -1,6 +1,6 @@
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 DB_PATH = Path("data/app.db")
@@ -40,15 +40,15 @@ def init_db(db_path=None):
             conn.execute("ALTER TABLE predictions ADD COLUMN posted_at TEXT")
 
 
-def save_prediction(text, label, confidence=None, model="baseline",
-                    source="manual", db_path=None, posted_at=None):
+def save_prediction(
+    text, label, confidence=None, model="baseline", source="manual", db_path=None, posted_at=None
+):
     with get_conn(db_path) as conn:
         conn.execute(
             "INSERT INTO predictions "
             "(created_at, text, label, confidence, model, source, posted_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (datetime.now(timezone.utc).isoformat(), text, label,
-             confidence, model, source, posted_at),
+            (datetime.now(UTC).isoformat(), text, label, confidence, model, source, posted_at),
         )
 
 
@@ -64,3 +64,29 @@ def get_predictions(limit=500, model=None, db_path=None):
         params.append(limit)
     with get_conn(db_path) as conn:
         return [dict(row) for row in conn.execute(query, params).fetchall()]
+
+
+def delete_predictions(ids, db_path=None):
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return 0
+
+    deleted = 0
+    with get_conn(db_path) as conn:
+        for start in range(0, len(ids), 900):
+            chunk = ids[start : start + 900]
+            placeholders = ", ".join("?" for _ in chunk)
+            cursor = conn.execute(f"DELETE FROM predictions WHERE id IN ({placeholders})", chunk)
+            deleted += cursor.rowcount
+    return deleted
+
+
+def clear_predictions(source=None, db_path=None):
+    query = "DELETE FROM predictions"
+    params = ()
+    if source is not None:
+        query += " WHERE source = ?"
+        params = (source,)
+    with get_conn(db_path) as conn:
+        cursor = conn.execute(query, params)
+        return cursor.rowcount

@@ -1,4 +1,5 @@
 """CSV-backed post source."""
+
 from pathlib import Path
 
 import pandas as pd
@@ -22,9 +23,7 @@ class CSVSource(Source):
 
         frame = pd.read_csv(self.path)
         if self.text_col not in frame.columns:
-            raise ValueError(
-                f"CSV file {self.path} has no {self.text_col!r} column"
-            )
+            raise ValueError(f"CSV file {self.path} has no {self.text_col!r} column")
         texts = frame[self.text_col].dropna().astype(str)
         texts = texts[texts.str.strip().ne("")].head(limit)
         return [Post(text=text, source=self.name) for text in texts]

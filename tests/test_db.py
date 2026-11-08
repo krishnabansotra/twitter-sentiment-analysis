@@ -1,6 +1,12 @@
 import sqlite3
 
-from src.db import init_db, save_prediction, get_predictions
+from src.db import (
+    clear_predictions,
+    delete_predictions,
+    get_predictions,
+    init_db,
+    save_prediction,
+)
 
 
 def test_save_and_read(tmp_path):
@@ -17,8 +23,13 @@ def test_save_and_read_posted_at(tmp_path):
     init_db(db)
     posted_at = "2024-01-02T03:04:05Z"
     save_prediction(
-        "A useful comment", "neutral", 0.75, "bert", source="youtube",
-        posted_at=posted_at, db_path=db,
+        "A useful comment",
+        "neutral",
+        0.75,
+        "bert",
+        source="youtube",
+        posted_at=posted_at,
+        db_path=db,
     )
 
     rows = get_predictions(db_path=db)
@@ -48,3 +59,48 @@ def test_init_db_migrates_existing_table_without_posted_at(tmp_path):
     assert rows[0]["posted_at"] is None
     assert rows[1]["text"] == "Old row"
     assert rows[1]["posted_at"] is None
+
+
+def test_delete_selected_prediction_ids(tmp_path):
+    db = tmp_path / "delete_selected.db"
+    init_db(db)
+    for text in ["first", "second", "third"]:
+        save_prediction(text, "neutral", db_path=db)
+    rows = get_predictions(limit=None, db_path=db)
+
+    deleted = delete_predictions([rows[0]["id"], rows[2]["id"]], db_path=db)
+
+    assert deleted == 2
+    assert [row["text"] for row in get_predictions(limit=None, db_path=db)] == ["second"]
+
+
+def test_clear_all_predictions(tmp_path):
+    db = tmp_path / "clear_all.db"
+    init_db(db)
+    save_prediction("first", "positive", db_path=db)
+    save_prediction("second", "negative", db_path=db)
+
+    assert clear_predictions(db_path=db) == 2
+    assert get_predictions(limit=None, db_path=db) == []
+
+
+def test_clear_predictions_by_source(tmp_path):
+    db = tmp_path / "clear_source.db"
+    init_db(db)
+    save_prediction("one", "positive", source="upload", db_path=db)
+    save_prediction("two", "negative", source="youtube", db_path=db)
+    save_prediction("three", "neutral", source="upload", db_path=db)
+
+    assert clear_predictions(source="upload", db_path=db) == 2
+    rows = get_predictions(limit=None, db_path=db)
+    assert [row["text"] for row in rows] == ["two"]
+
+
+def test_deleting_nothing_returns_zero(tmp_path):
+    db = tmp_path / "delete_nothing.db"
+    init_db(db)
+    save_prediction("keep me", "neutral", db_path=db)
+
+    assert delete_predictions([], db_path=db) == 0
+    assert delete_predictions([999], db_path=db) == 0
+    assert clear_predictions(source="missing", db_path=db) == 0

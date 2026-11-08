@@ -1,9 +1,9 @@
 """Shared theme and small presentation helpers for the dashboard."""
+
 from html import escape
 
 import plotly.graph_objects as go
 import streamlit as st
-
 
 ACCENT = "#2563eb"
 NEGATIVE = "#dc2626"
@@ -25,7 +25,8 @@ _TONES = {
 
 def apply_theme():
     """Load typography and shared spacing, cards, and control styles."""
-    st.markdown("""
+    st.markdown(
+        """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     :root { --feedback-accent: #2563eb; }
@@ -61,7 +62,9 @@ def apply_theme():
     .feedback-header-meta { color: rgba(128, 128, 128, 0.9); font-size: 12px; text-align: right; }
     .feedback-footer { color: rgba(128, 128, 128, 0.85); font-size: 12px; }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 def kpi_card(label, value, delta=None, chart_data=None, tone="accent", delta_color=None):
@@ -70,8 +73,13 @@ def kpi_card(label, value, delta=None, chart_data=None, tone="accent", delta_col
     if delta_color is None:
         delta_color = "inverse" if tone == "negative" else "normal"
     st.metric(
-        label, value, delta=delta, delta_color=delta_color, border=True,
-        chart_data=chart_data, chart_type="line",
+        label,
+        value,
+        delta=delta,
+        delta_color=delta_color,
+        border=True,
+        chart_data=chart_data,
+        chart_type="line",
     )
     st.markdown(
         f'<div style="height:3px;background:{color};border-radius:3px;margin-top:-8px"></div>',
@@ -102,7 +110,7 @@ def insight_banner(text, tone="accent"):
     color, _ = _TONES.get(tone, _TONES["accent"])
     st.markdown(
         f'<div class="feedback-banner" style="--banner-color:{color}">'
-        f'<p>{escape(str(text))}</p></div>',
+        f"<p>{escape(str(text))}</p></div>",
         unsafe_allow_html=True,
     )
 
@@ -111,12 +119,12 @@ def style_fig(figure):
     """Apply quiet axes and transparent surfaces to a Plotly figure."""
     text_color = st.get_option("theme.textColor") or "#475569"
     figure.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         font={"family": "Inter, sans-serif", "size": 12, "color": text_color},
         title_font={"size": 15, "color": text_color},
         margin={"l": 12, "r": 12, "t": 48, "b": 12},
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02,
-                "xanchor": "right", "x": 1},
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
     figure.update_xaxes(showgrid=True, gridcolor="rgba(128,128,128,0.16)", zeroline=False)
     figure.update_yaxes(showgrid=False, zeroline=False)
@@ -132,14 +140,22 @@ def issue_bar(issues):
 
     colors = [ACCENT] + ["#64748b"] * (len(issues) - 1)
     leader = issues.iloc[0]
-    figure = go.Figure(go.Bar(
-        x=issues["share_pct"], y=issues["issue"], orientation="h",
-        marker_color=colors, text=[f"{share:.1f}%" for share in issues["share_pct"]],
-        textposition="outside", hovertemplate="%{y}<br>%{x:.1f}% of negative tweets<extra></extra>",
-    ))
+    figure = go.Figure(
+        go.Bar(
+            x=issues["share_pct"],
+            y=issues["issue"],
+            orientation="h",
+            marker_color=colors,
+            text=[f"{share:.1f}%" for share in issues["share_pct"]],
+            textposition="outside",
+            hovertemplate="%{y}<br>%{x:.1f}% of negative tweets<extra></extra>",
+        )
+    )
     figure.update_layout(
         title=f"{leader['issue']} is the leading complaint ({leader['share_pct']:.1f}%)",
-        showlegend=False, yaxis={"autorange": "reversed"},
-        xaxis_title="Share of negative tweets (%)", yaxis_title=None,
+        showlegend=False,
+        yaxis={"autorange": "reversed"},
+        xaxis_title="Share of negative tweets (%)",
+        yaxis_title=None,
     )
     return style_fig(figure)

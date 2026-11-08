@@ -1,13 +1,20 @@
 """Metrics, confusion matrices, and model comparison."""
+
 import json
 import os
+
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import seaborn as sns
 import pandas as pd
-from sklearn.metrics import (accuracy_score, precision_recall_fscore_support,
-                             confusion_matrix, classification_report)
+import seaborn as sns
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    precision_recall_fscore_support,
+)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULTS_DIR = os.path.join(ROOT, "models", "results")
@@ -26,12 +33,19 @@ def evaluate(y_true, y_pred, name: str, labels=None):
     plt.figure(figsize=(max(5, len(labels) * 0.9), max(4, len(labels) * 0.7)))
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=labels, yticklabels=labels)
     plt.title(f"Confusion Matrix - {name}")
-    plt.xlabel("Predicted"); plt.ylabel("Actual"); plt.tight_layout()
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.tight_layout()
     plt.savefig(os.path.join(RESULTS_DIR, f"cm_{name}.png"), dpi=150)
     plt.close()
 
-    res = {"model": name, "accuracy": round(acc, 4), "precision": round(p, 4),
-           "recall": round(r, 4), "f1_macro": round(f1, 4)}
+    res = {
+        "model": name,
+        "accuracy": round(acc, 4),
+        "precision": round(p, 4),
+        "recall": round(r, 4),
+        "f1_macro": round(f1, 4),
+    }
     with open(os.path.join(RESULTS_DIR, f"{name}.json"), "w") as f:
         json.dump(res, f, indent=2)
     return res

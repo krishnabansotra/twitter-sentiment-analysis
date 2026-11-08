@@ -1,4 +1,5 @@
 """Batch sentiment prediction helpers."""
+
 from collections.abc import Callable
 
 from src.predict import get_predictor
@@ -27,7 +28,7 @@ def analyze_batch(
     results = []
     chunk_size = 64
     for start in range(0, len(valid_texts), chunk_size):
-        chunk = valid_texts[start:start + chunk_size]
+        chunk = valid_texts[start : start + chunk_size]
         predictions = predictor.predict(chunk)
         results.extend(
             {

@@ -1,11 +1,15 @@
 """YouTube comments source using the YouTube Data API."""
+
 import os
 import re
 from urllib.parse import parse_qs, urlparse
 
 import requests
+from dotenv import load_dotenv
 
 from src.sources.base import Post, Source
+
+load_dotenv()
 
 
 class YouTubeSource(Source):
@@ -13,6 +17,7 @@ class YouTubeSource(Source):
 
     name = "youtube"
     API_URL = "https://www.googleapis.com/youtube/v3/commentThreads"
+    VIDEO_API_URL = "https://www.googleapis.com/youtube/v3/videos"
     VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
     def __init__(self, video):
@@ -42,13 +47,32 @@ class YouTubeSource(Source):
                 video_id = ""
 
         if not cls.VIDEO_ID_PATTERN.fullmatch(video_id):
-            raise ValueError(f"Invalid YouTube video URL or ID: {video!r}")
+            raise ValueError("Invalid YouTube video URL or ID.")
         return video_id
 
-    def fetch(self, limit=100) -> list[Post]:
+    def fetch_video_details(self) -> dict:
+        """Fetch the video title and total comment count."""
+        payload = self._get_payload(
+            self.VIDEO_API_URL,
+            {"part": "snippet,statistics", "id": self.video_id, "key": self.api_key},
+        )
+        items = payload.get("items", [])
+        if not items:
+            raise RuntimeError("The YouTube video was not found; check the video ID.")
+
+        item = items[0]
+        return {
+            "title": item.get("snippet", {}).get("title", "Untitled video"),
+            "comment_count": int(item.get("statistics", {}).get("commentCount", 0)),
+        }
+
+    def fetch(self, limit=100, order="relevance") -> list[Post]:
         """Fetch up to limit top-level comments."""
         if limit < 0:
             raise ValueError("limit must be non-negative")
+        if order not in {"newest", "relevance", "time"}:
+            raise ValueError("order must be 'newest' or 'relevance'.")
+
         posts = []
         page_token = None
 
@@ -57,22 +81,14 @@ class YouTubeSource(Source):
                 "part": "snippet",
                 "videoId": self.video_id,
                 "maxResults": min(100, limit - len(posts)),
+                "order": "time" if order in {"newest", "time"} else "relevance",
                 "textFormat": "plainText",
                 "key": self.api_key,
             }
             if page_token:
                 params["pageToken"] = page_token
 
-            try:
-                response = requests.get(self.API_URL, params=params, timeout=15)
-            except requests.RequestException as error:
-                raise RuntimeError(f"YouTube network error: {error}") from error
-
-            try:
-                payload = response.json()
-            except ValueError:
-                payload = {}
-            self._raise_for_api_error(response.status_code, payload)
+            payload = self._get_payload(self.API_URL, params)
 
             for item in payload.get("items", []):
                 comment = item.get("snippet", {}).get("topLevelComment", {})
@@ -80,15 +96,17 @@ class YouTubeSource(Source):
                 text = details.get("textDisplay", "")
                 if not text:
                     continue
-                posts.append(Post(
-                    text=text,
-                    source=self.name,
-                    meta={
-                        "comment_id": comment.get("id", item.get("id", "")),
-                        "video_id": details.get("videoId", self.video_id),
-                        "published_at": details.get("publishedAt", ""),
-                    },
-                ))
+                posts.append(
+                    Post(
+                        text=text,
+                        source=self.name,
+                        meta={
+                            "comment_id": comment.get("id", item.get("id", "")),
+                            "video_id": details.get("videoId", self.video_id),
+                            "published_at": details.get("publishedAt", ""),
+                        },
+                    )
+                )
                 if len(posts) == limit:
                     break
 
@@ -97,6 +115,20 @@ class YouTubeSource(Source):
                 break
 
         return posts
+
+    def _get_payload(self, url, params):
+        try:
+            response = requests.get(url, params=params, timeout=15)
+        except requests.RequestException:
+            raise RuntimeError("YouTube network error. Check your connection and try again.") from None
+
+        try:
+            payload = response.json()
+        except ValueError:
+            raise RuntimeError("The YouTube API returned an invalid response.") from None
+
+        self._raise_for_api_error(response.status_code, payload)
+        return payload
 
     @staticmethod
     def _raise_for_api_error(status_code, payload):
@@ -107,7 +139,6 @@ class YouTubeSource(Source):
         error = payload.get("error", {})
         errors = error.get("errors", [])
         reasons = {item.get("reason") for item in errors}
-        message = error.get("message", "The YouTube API returned an error.")
         if "commentsDisabled" in reasons:
             detail = "Comments are disabled for this video."
         elif reasons & {"videoNotFound", "notFound"}:
@@ -115,5 +146,5 @@ class YouTubeSource(Source):
         elif "quotaExceeded" in reasons:
             detail = "YouTube API quota exceeded."
         else:
-            detail = f"YouTube API error ({status_code}): {message}"
+            detail = f"YouTube API error ({status_code})."
         raise RuntimeError(detail)

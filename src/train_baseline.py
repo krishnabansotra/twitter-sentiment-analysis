@@ -1,16 +1,18 @@
 """Level 1: TF-IDF + classical ML models."""
+
 import argparse
 import os
+
 import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import f1_score
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.svm import LinearSVC
-from sklearn.metrics import f1_score
 
-from src.data_loader import load_data, ROOT
-from src.preprocessing import clean_tweet
+from src.data_loader import ROOT, load_data
 from src.evaluate import evaluate
+from src.preprocessing import clean_tweet
 
 
 def main(source, sample_size):
@@ -47,7 +49,9 @@ def main(source, sample_size):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", default="tweet_eval", help="tweet_eval | sentiment140 | sample | path.csv")
+    ap.add_argument(
+        "--source", default="tweet_eval", help="tweet_eval | sentiment140 | sample | path.csv"
+    )
     ap.add_argument("--sample_size", type=int, default=None)
     a = ap.parse_args()
     main(a.source, a.sample_size)
