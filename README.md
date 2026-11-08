@@ -1,131 +1,189 @@
-# Twitter/X Sentiment Analysis (Major Project)
+# Twitter Sentiment Analysis
 
-Classifies tweets as **positive / neutral / negative** using three model levels and compares them:
+A sentiment-analysis project for classifying short text as negative, neutral, or positive. It includes classical ML, a PyTorch BiLSTM, and a fine-tuned Hugging Face transformer, with a Streamlit dashboard, SQLite prediction history, data collectors, and a FastAPI application.
 
-| Level | Model | File |
-|---|---|---|
-| 1 | TF-IDF + Logistic Regression / Naive Bayes / Linear SVM | `src/train_baseline.py` |
-| 2 | BiLSTM (PyTorch) | `src/train_lstm.py` |
-| 3 | Fine-tuned Twitter-RoBERTa (Hugging Face) | `src/train_bert.py` |
+## Features
 
-Served through a **FastAPI** backend and a **Streamlit** dashboard.
+- Train baseline TF-IDF classifiers, a BiLSTM, or the configured transformer from `src/train_baseline.py`, `src/train_lstm.py`, and `src/train_bert.py`.
+- Collect text from CSV files, public Reddit search results, and public YouTube comments with `src/collect.py`.
+- Analyze a single text or uploaded CSV in the dashboard. Batch analysis can process up to 5,000 rows, skip empty text, and download results.
+- Explore saved predictions in the Insights tab with source/model/sentiment filters, sentiment counts over time, and top keywords.
+- Review recent predictions in the History section. Saved records are stored in `data/app.db`.
+- Use the dashboard's optional live X API tab, model comparison, urgency/reply guidance, and LIME-based explanation.
+
+[SCREENSHOT: dashboard home]
+
+[SCREENSHOT: batch analysis results]
+
+[SCREENSHOT: insights tab]
 
 ## Architecture
 
-```
-Data (TweetEval / Sentiment140 / CSV / X API)
-        -> preprocessing.py (clean_tweet / normalize_for_transformer)
-        -> train_baseline | train_lstm | train_bert
-        -> evaluate.py (accuracy, precision, recall, F1, confusion matrix, comparison table)
-        -> models/  ->  predict.py (unified predictor)
-                         |-> api/main.py       (REST API)
-                         |-> app/dashboard.py  (Streamlit UI)
+```text
+TweetEval / local labeled CSV -> training scripts -> saved models in models/
+
+CSV / Reddit / YouTube -> src/collect.py -> src/predict.py -> SQLite (data/app.db)
+Dashboard single-text / batch prediction -> src/predict.py -> SQLite
+Dashboard History / Insights <- SQLite
+API client -> FastAPI routes -> src/predict.py -> JSON response
 ```
 
-## Setup
+`src/predict.py` selects an available saved backend (`baseline`, `lstm`, or `bert`). The dashboard reads saved prediction rows for History and Insights. The API route definitions are present, but the current `api/main.py` has an import-time error described under [Limitations](#limitations).
 
-```bash
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1    # Windows PowerShell
-# macOS/Linux: source .venv/bin/activate
+## Results
+
+These are the values currently recorded in `models/results/comparison.csv`. Accuracy and macro-F1 are shown as stored, without additional rounding.
+
+| Model | Accuracy | Macro-F1 |
+|---|---:|---:|
+| bert | 0.7025 | 0.7048 |
+| baseline_logreg | 0.5882 | 0.5848 |
+| baseline_linear_svm | 0.5713 | 0.5664 |
+| lstm | 0.5691 | 0.5542 |
+| baseline_naive_bayes | 0.5342 | 0.4334 |
+
+These are saved evaluation results; retraining can produce different values depending on the data and model configuration.
+
+## Quick Start
+
+Run commands from the repository root. In Windows PowerShell:
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## Quick smoke test (no internet, uses the bundled 90-tweet sample)
+Train the baseline on the bundled sample CSV for a local smoke run:
 
-```bash
-python -m pytest -q tests
+```powershell
 python -m src.train_baseline --source sample
-streamlit run app/dashboard.py
 ```
 
-## Real training (run all commands from the project root)
+For the default TweetEval training source, run `python -m src.train_baseline`; it loads TweetEval through Hugging Face and requires network access. The other training entry points are `python -m src.train_lstm` and `python -m src.train_bert`. Each accepts `--source`, `--sample_size`, and model-specific options; see `--help` for the exact arguments. Refresh the saved comparison with:
 
-```bash
-# Level 1: fast, CPU is fine (downloads TweetEval automatically)
-python -m src.train_baseline
-
-# Level 2: BiLSTM (CPU ok, GPU faster)
-python -m src.train_lstm --epochs 6
-
-# Level 3: RoBERTa fine-tuning. Use a GPU (Google Colab free tier works).
-python -m src.train_bert --epochs 3
-
-# Comparison table of all trained models
+```powershell
 python -m src.evaluate
 ```
 
-Tip: while developing, add `--sample_size 5000` to train quickly on a subset.
+Run the dashboard:
 
-**Using Sentiment140 instead** (binary): download from Kaggle, save as `data/raw/sentiment140.csv`, then
-`python -m src.train_baseline --source sentiment140 --sample_size 200000`.
-(Train all models with the same source so the comparison is fair.)
-
-**Your own data:** a CSV with columns `text,label` (labels: negative/neutral/positive), pass `--source yourfile.csv`.
-
-## Run the services
-
-```bash
-uvicorn api.main:app --reload          # http://localhost:8000/docs
-streamlit run app/dashboard.py         # http://localhost:8501
+```powershell
+streamlit run app/dashboard.py
 ```
 
-API example:
-```bash
-curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" \
-     -d '{"text": "I love this phone!", "model": "baseline"}'
+The dashboard requires at least one trained model artifact. Its default local URL is `http://localhost:8501`.
+
+The API launch command is:
+
+```powershell
+uvicorn api.main:app --reload
 ```
 
-## Live tweets (optional)
+However, `api.main` currently fails during import because module-level code refers to undefined `request` and `result` values. The API command and routes below describe the intended interface; the startup defect must be fixed before the API can be used. FastAPI's default documentation route is `/docs` once the app imports successfully.
 
-Copy `.env.example` to `.env`, add your X API bearer token, export it (`export X_BEARER_TOKEN=...`), then use the
-"Live (X API)" tab. X API access and pricing change often, so check developer.x.com. If you have no access, use the CSV upload tab.
+## Collecting Data
 
-## Docker
+All collection examples require a trained model unless `--no-predict` is used. CSV collection reads the configured text column (default `text`) and stores predictions in SQLite:
 
-```bash
-docker build -t tweet-sentiment .
-docker run -p 8501:8501 tweet-sentiment
-```
-(Train the models first so `models/` contains files, or mount it with `-v $(pwd)/models:/app/models`.)
-
-## Project structure
-
-```
-data/          raw & processed data, sample_tweets.csv
-src/           preprocessing, data_loader, training scripts, evaluate, predict, data_collection
-api/           FastAPI app
-app/           Streamlit dashboard
-models/        saved models and results/ (metrics JSON, confusion matrices)
-tests/         pytest tests
+```powershell
+python -m src.collect --source csv --file data/raw/Datasets/sample_tweets.csv --limit 50 --model baseline
 ```
 
-## Ideas to extend (for extra marks)
+YouTube collection requires a `YOUTUBE_API_KEY` in the process environment. This example fetches, predicts, saves to history, and also exports the fetched rows:
 
-- Hinglish / multilingual support (e.g., `cardiffnlp/twitter-xlm-roberta-base-sentiment`)
-- Sarcasm detection, emoji-aware features
-- Topic modeling with BERTopic/LDA to explain *why* sentiment is positive/negative
-- Hyperparameter tuning and cross-validation
-- Explainability with LIME/SHAP
-
-## Evidence and evaluation
-
-Review sentiment errors and export examples for annotation:
-```bash
-python -m src.error_analysis --backend baseline --n 60
+```powershell
+$env:YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY"
+python -m src.collect --source youtube --video "https://youtu.be/TiKuJzi8qpI" --limit 50 --model baseline --export-csv data/processed/youtube_comments.csv
 ```
 
-Write bootstrap model comparisons and confidence intervals:
-```bash
-python -m src.results_report
+To fetch and export without predicting or saving to the database, add `--no-predict`:
+
+```powershell
+python -m src.collect --source youtube --video "https://youtu.be/TiKuJzi8qpI" --limit 50 --export-csv data/processed/youtube_comments.csv --no-predict
 ```
 
-Evaluate a saved model on a separate labeled CSV without retraining:
-```bash
-python -m src.external_eval --input reviews.csv --text-col text --label-col label --label-mode text --backend baseline
+Reddit collection uses `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` environment variables:
+
+```powershell
+$env:REDDIT_CLIENT_ID = "YOUR_REDDIT_CLIENT_ID"
+$env:REDDIT_CLIENT_SECRET = "YOUR_REDDIT_CLIENT_SECRET"
+python -m src.collect --source reddit --query "flight delay" --limit 50 --model baseline
 ```
 
-Explain an individual prediction with LIME:
-```bash
-python -m src.explain "The flight was delayed and the staff were rude" --backend baseline
+The optional dashboard Live (X API) tab uses `X_BEARER_TOKEN`. `.env.example` documents that variable, but the code reads it from the process environment; PowerShell can set it with `$env:X_BEARER_TOKEN = "YOUR_X_BEARER_TOKEN"`.
+
+## API Endpoints
+
+The routes defined in `api/main.py` are:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/health` | Return service status and available model names. |
+| `POST` | `/predict` | Predict one text. Request fields: `text` (1-1,000 characters) and optional `model` (defaults to `baseline`). |
+| `POST` | `/predict_batch` | Predict a list of 1-500 texts. Request fields: `texts` and optional `model`. |
+
+Prediction responses are produced by the selected backend and contain sentiment, confidence, and class probabilities. These routes cannot currently be reached until the import-time error noted above is fixed.
+
+## Testing
+
+Activate the virtual environment and run the test suite:
+
+```powershell
+python -m pytest -q tests
 ```
+
+The tests cover preprocessing, model/data pipeline behavior, database operations, collection sources, urgency, explanations, and insight calculations. The bundled sample dataset supports the local pipeline smoke test.
+
+## Project Structure
+
+```text
+api/                 FastAPI application: main.py
+app/                 Streamlit dashboard and theme: dashboard.py, theme.py
+data/
+  processed/         airline.csv, analyzed.csv, analyzed_full.csv, issues.csv
+  raw/Datasets/      sample_tweets.csv (bundled sample)
+src/
+  sources/           base.py, csv_source.py, reddit_source.py, youtube_source.py
+  batch.py           Batch prediction helper
+  collect.py         Fetch, predict, save, and optionally export posts
+  db.py              SQLite history
+  evaluate.py        Evaluation metrics and model comparison
+  predict.py         Unified model prediction interface
+  train_baseline.py  TF-IDF and classical classifiers
+  train_lstm.py      BiLSTM training
+  train_bert.py      Transformer training
+  insights.py        Insight aggregations and existing issue/trend utilities
+  preprocessing.py   Text preprocessing
+models/              Model artifacts, checkpoints, and results/
+tests/               pytest suite
+Dockerfile           Container image configuration
+requirements.txt     Python dependencies
+```
+
+Other source modules include data loading/collection, issue and urgency analysis, explanations, replies, artifact checks, external evaluation, and result reporting. Tests are organized by pipeline, source, database, preprocessing, insights, explanation, and urgency behavior.
+
+## Ethics and Privacy
+
+- Use public posts only when collecting from Reddit or YouTube, and respect each service's terms, quotas, and applicable law.
+- The source adapters and SQLite schema do not store author usernames. The database does store post text and may store the original post date; YouTube CSV exports also include comment and video identifiers.
+- Public text can still contain personal or sensitive information. Do not upload or retain material without appropriate permission; review exported files before sharing them.
+- `.gitignore` excludes raw collection files under `data/raw`. The bundled `data/raw/Datasets/sample_tweets.csv` is an explicit tracked exception for local tests. Keep credentials and other raw/private data out of commits.
+- Sentiment predictions are estimates. Review model outputs before using them to make decisions about people.
+
+## Limitations
+
+- The API currently fails at import because `api/main.py` executes a prediction-save block at module scope using undefined `request` and `result` variables.
+- TweetEval is the default training source and requires network access. `sentiment140` is loaded as a two-class dataset, unlike the project's usual three sentiment labels.
+- Reddit and YouTube collection require credentials; live X API access also depends on a valid bearer token and current API availability.
+- The dashboard can only select model backends whose artifacts are present. Transformer training may require substantial download time and compute.
+- The Insights keyword counts are a simple English-token frequency measure, not topic or phrase analysis. SQLite is a local application database, not a multi-user database service.
+
+## Future Work
+
+- Fix and test API startup, move prediction persistence into the appropriate route, and add API-level tests.
+- Add user authentication and operational safeguards before exposing the API or dashboard outside a trusted local environment.
+- Add multilingual and phrase-level insights, plus evaluation across consistent datasets and label sets.
+- Add data-retention controls and optional redaction for uploaded or collected text.
+- Add dashboard/API integration tests and deployment guidance for production environments.
