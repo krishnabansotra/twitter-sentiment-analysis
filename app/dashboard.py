@@ -173,8 +173,8 @@ def show_results(df: pd.DataFrame):
         st.download_button("Download CSV", df.to_csv(index=False), "results.csv")
 
 
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["Single tweet", "Upload CSV", "Live (X API)", "Model comparison"]
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["Single tweet", "Upload CSV", "Live (X API)", "Model comparison", "Batch analysis"]
 )
 
 with tab1:
@@ -378,6 +378,73 @@ with tab4:
                 with st.expander("Confusion matrices"):
                     selected_figure = st.selectbox("Model result", figures)
                     st.image(os.path.join(results_dir, selected_figure), caption=selected_figure)
+
+with tab5:
+    theme.insight_banner("Analyze every non-empty text row in a CSV file.")
+    uploaded_batch = st.file_uploader("Upload CSV", type="csv", key="batch_upload")
+    if uploaded_batch:
+        try:
+            batch_data = pd.read_csv(uploaded_batch)
+        except Exception as error:
+            st.error(f"Could not read the uploaded CSV: {error}")
+            batch_data = pd.DataFrame()
+
+        if batch_data.empty and len(batch_data.columns) == 0:
+            st.info("Upload a CSV file with at least one column.")
+        elif len(batch_data.columns) == 0:
+            st.info("The uploaded CSV has no columns to analyze.")
+        else:
+            columns = batch_data.columns.tolist()
+            default_column = columns.index("text") if "text" in columns else 0
+            text_column = st.selectbox("Text column", columns, index=default_column)
+            batch_model = st.selectbox(
+                "Sentiment model", backends, index=backends.index(model_name), key="batch_model"
+            )
+            maximum_rows = st.slider("Maximum rows", 1, 5000, 500)
+            save_to_history = st.checkbox("Save results to history database", value=True)
+
+            if st.button("Analyze", type="primary", key="analyze_batch"):
+                from src.batch import analyze_batch
+
+                progress = st.progress(0.0, text="Preparing batch analysis...")
+                batch_results = analyze_batch(
+                    batch_data[text_column].head(maximum_rows).tolist(),
+                    batch_model,
+                    progress_callback=lambda value: progress.progress(
+                        value, text=f"Analyzing rows: {value:.0%}"
+                    ),
+                )
+                st.session_state["batch_analysis_results"] = batch_results
+                st.session_state["batch_analysis_key"] = (
+                    uploaded_batch.name, text_column, batch_model, maximum_rows
+                )
+                if save_to_history:
+                    for result in batch_results:
+                        save_prediction(
+                            result["text"], result["sentiment"], result["confidence"],
+                            batch_model, source="upload",
+                        )
+
+            batch_key = (uploaded_batch.name, text_column, batch_model, maximum_rows)
+            if st.session_state.get("batch_analysis_key") == batch_key:
+                results_frame = pd.DataFrame(
+                    st.session_state["batch_analysis_results"],
+                    columns=["text", "sentiment", "confidence"],
+                )
+                if results_frame.empty:
+                    st.info("No non-empty text rows were found within the selected limit.")
+                else:
+                    st.dataframe(results_frame, width="stretch", hide_index=True)
+                    sentiment_counts = results_frame["sentiment"].value_counts()
+                    st.bar_chart(sentiment_counts)
+                    st.metric("Average confidence", f"{results_frame['confidence'].mean():.1%}")
+                st.download_button(
+                    "Download results as CSV",
+                    results_frame.to_csv(index=False),
+                    "batch_results.csv",
+                    mime="text/csv",
+                    key="download_batch_results",
+                )
 
 with header_slot.container():
     header_left, header_right = st.columns([2, 1])
