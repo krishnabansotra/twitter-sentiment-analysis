@@ -30,20 +30,25 @@ def init_db(db_path=None):
                 label       TEXT NOT NULL,
                 confidence  REAL,
                 model       TEXT,
-                source      TEXT DEFAULT 'manual'
+                source      TEXT DEFAULT 'manual',
+                posted_at   TEXT
             )
             """
         )
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(predictions)")}
+        if "posted_at" not in columns:
+            conn.execute("ALTER TABLE predictions ADD COLUMN posted_at TEXT")
 
 
 def save_prediction(text, label, confidence=None, model="baseline",
-                    source="manual", db_path=None):
+                    source="manual", db_path=None, posted_at=None):
     with get_conn(db_path) as conn:
         conn.execute(
-            "INSERT INTO predictions (created_at, text, label, confidence, model, source) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO predictions "
+            "(created_at, text, label, confidence, model, source, posted_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (datetime.now(timezone.utc).isoformat(), text, label,
-             confidence, model, source),
+             confidence, model, source, posted_at),
         )
 
 
@@ -53,7 +58,9 @@ def get_predictions(limit=500, model=None, db_path=None):
     if model:
         query += " WHERE model = ?"
         params.append(model)
-    query += " ORDER BY id DESC LIMIT ?"
-    params.append(limit)
+    query += " ORDER BY id DESC"
+    if limit is not None:
+        query += " LIMIT ?"
+        params.append(limit)
     with get_conn(db_path) as conn:
         return [dict(row) for row in conn.execute(query, params).fetchall()]

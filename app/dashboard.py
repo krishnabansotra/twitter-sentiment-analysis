@@ -13,6 +13,7 @@ import streamlit as st
 
 from app import theme
 from src.db import get_predictions, init_db, save_prediction
+from src.insights import sentiment_over_time, top_keywords
 from src.predict import available_backends, get_predictor
 
 
@@ -173,8 +174,11 @@ def show_results(df: pd.DataFrame):
         st.download_button("Download CSV", df.to_csv(index=False), "results.csv")
 
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["Single tweet", "Upload CSV", "Live (X API)", "Model comparison", "Batch analysis"]
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    [
+        "Single tweet", "Upload CSV", "Live (X API)", "Model comparison",
+        "Batch analysis", "Insights",
+    ]
 )
 
 with tab1:
@@ -445,6 +449,90 @@ with tab5:
                     mime="text/csv",
                     key="download_batch_results",
                 )
+
+with tab6:
+    theme.insight_banner("Explore saved sentiment patterns and frequently used words.")
+    insight_data = pd.DataFrame(get_predictions(limit=None))
+    if insight_data.empty:
+        st.info("No saved predictions yet. Analyze or collect posts to build your insights.")
+    else:
+        if "source" not in insight_data:
+            insight_data["source"] = "manual"
+        if "model" not in insight_data:
+            insight_data["model"] = ""
+        if "label" not in insight_data:
+            insight_data["label"] = ""
+
+        filter_columns = st.columns(3)
+        with filter_columns[0]:
+            selected_source = st.selectbox(
+                "Source", ["all", "csv", "upload", "reddit", "youtube"]
+            )
+        with filter_columns[1]:
+            model_options = sorted(
+                {str(value) for value in insight_data["model"].dropna() if str(value)}
+            )
+            selected_model = st.selectbox("Model", ["all", *model_options])
+        with filter_columns[2]:
+            selected_sentiment = st.selectbox(
+                "Sentiment", ["all", "positive", "neutral", "negative"]
+            )
+
+        filtered_data = insight_data.copy()
+        if selected_source != "all":
+            filtered_data = filtered_data[filtered_data["source"] == selected_source]
+        if selected_model != "all":
+            filtered_data = filtered_data[filtered_data["model"] == selected_model]
+        keyword_rows = filtered_data.to_dict("records")
+        if selected_sentiment != "all":
+            filtered_data = filtered_data[filtered_data["label"] == selected_sentiment]
+        rows_for_insights = filtered_data.to_dict("records")
+
+        total_rows = len(filtered_data)
+        sentiment_counts = filtered_data["label"].value_counts()
+        metric_columns = st.columns(4)
+        metric_columns[0].metric("Total rows", f"{total_rows:,}")
+        for column, sentiment in zip(
+            metric_columns[1:], ["positive", "neutral", "negative"]
+        ):
+            percentage = sentiment_counts.get(sentiment, 0) * 100 / total_rows if total_rows else 0
+            column.metric(sentiment.title(), f"{percentage:.1f}%")
+
+        if not rows_for_insights:
+            st.info("No predictions match these filters. Try a broader selection.")
+        else:
+            date_grouping = st.selectbox("Time grouping", ["Day", "Week", "Hour"])
+            frequency = {"Day": "D", "Week": "W", "Hour": "h"}[date_grouping]
+            trend = sentiment_over_time(rows_for_insights, freq=frequency)
+            if trend.empty:
+                st.info("There are no valid post or prediction dates for this selection.")
+            else:
+                trend_frame = trend.rename_axis("date").reset_index().melt(
+                    id_vars="date", var_name="sentiment", value_name="count"
+                )
+                trend_figure = px.line(
+                    trend_frame, x="date", y="count", color="sentiment", markers=True,
+                    color_discrete_map=COLORS, title="Sentiment over time",
+                )
+                st.plotly_chart(theme.style_fig(trend_figure), width="stretch")
+
+            keyword_filter = st.selectbox(
+                "Keyword sentiment", ["all", "positive", "neutral", "negative"]
+            )
+            keywords = top_keywords(
+                keyword_rows, n=20,
+                label=None if keyword_filter == "all" else keyword_filter,
+            )
+            if keywords:
+                keyword_frame = pd.DataFrame(keywords)
+                keyword_figure = px.bar(
+                    keyword_frame, x="count", y="keyword", orientation="h",
+                    title="Top keywords", color_discrete_sequence=[theme.ACCENT],
+                )
+                keyword_figure.update_layout(yaxis={"autorange": "reversed"})
+                st.plotly_chart(theme.style_fig(keyword_figure), width="stretch")
+            else:
+                st.info("No keywords are available for this selection.")
 
 with header_slot.container():
     header_left, header_right = st.columns([2, 1])

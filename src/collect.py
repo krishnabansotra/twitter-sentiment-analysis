@@ -95,6 +95,7 @@ def main():
                 prediction["confidence"],
                 args.model,
                 source=post.source,
+                posted_at=post.meta.get("published_at") or None,
             )
         print(f"Saved {len(posts)} predictions from {source.name}")
 
